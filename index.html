@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#050306">
+  <meta name="description" content="Belentani Judas Experience: escape room movil de luz, archivo y memoria.">
+  <title>BELENTANI / JUDAS / LIGHT ROOM</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="experience" id="experience">
+    <div class="aurora aurora--red"></div>
+    <div class="aurora aurora--gold"></div>
+    <div class="grain"></div>
+
+    <header class="topbar">
+      <button class="wordmark" id="wordmark" type="button" aria-label="Reiniciar experiencia">BELENTANI <span>/ JUDAS</span></button>
+      <div class="topbar__meta"><span id="chapterLabel">01 / UMBRAL</span><span class="audio-dot" id="audioDot"></span></div>
+    </header>
+
+    <div class="progress" aria-label="Progreso de la experiencia"><span id="progressFill"></span></div>
+
+    <section class="screen screen--active" data-screen="0" aria-labelledby="introTitle">
+      <div class="hero-copy">
+        <p class="eyebrow">UNA EXPERIENCIA DE BELENTANI</p>
+        <h1 id="introTitle">La luz<br><em>recuerda.</em></h1>
+        <p class="lede">Hay una habitacion que solo se abre cuando reconoces lo que dejaste dentro.</p>
+        <button class="cta" data-action="begin" type="button"><span>Entrar en el archivo</span><b>01</b></button>
+      </div>
+      <div class="hero-object" aria-hidden="true">
+        <div class="orbit orbit--one"></div><div class="orbit orbit--two"></div>
+        <div class="shard shard--one"></div><div class="shard shard--two"></div>
+        <div class="seed"></div><span class="hero-object__label">NO HAY PUERTA</span>
+      </div>
+      <p class="gesture-hint">Auriculares recomendados<br>mueve el dedo para mover la señal</p>
+    </section>
+
+    <section class="screen" data-screen="1" aria-labelledby="archiveTitle" hidden>
+      <div class="screen-heading"><p class="eyebrow">CAPITULO 01 / EL ARCHIVO</p><h2 id="archiveTitle">Toca lo que<br>todavia <em>arde.</em></h2><p>Hay tres señales en la sala. No busques rapido.</p></div>
+      <div class="relic-grid">
+        <button class="relic relic--mirror" data-relic="mirror" type="button"><span class="relic__shape"></span><span class="relic__name">ESPEJO</span><small>identidad / reflejo</small></button>
+        <button class="relic relic--thread" data-relic="thread" type="button"><span class="relic__shape"></span><span class="relic__name">HILO ROJO</span><small>vinculo / corte</small></button>
+        <button class="relic relic--key" data-relic="key" type="button"><span class="relic__shape"></span><span class="relic__name">LLAVE</span><small>acceso / retorno</small></button>
+      </div>
+      <div class="signal-status"><span id="signalCount">0 / 3 señales encontradas</span><span id="signalMessage">Una de ellas esta detras de ti.</span></div>
+      <button class="cta cta--quiet" id="toBox" type="button" disabled><span>Seguir la señal</span><b>02</b></button>
+    </section>
+
+    <section class="screen" data-screen="2" aria-labelledby="boxTitle" hidden>
+      <div class="screen-heading screen-heading--compact"><p class="eyebrow">CAPITULO 02 / LA CAJA DE LUZ</p><h2 id="boxTitle">La memoria<br>tiene <em>orden.</em></h2><p>El archivo te ha dado cuatro pulsos. Repite su secuencia.</p></div>
+      <div class="lightbox-wrap">
+        <div class="lightbox" id="lightbox" aria-label="Caja de luz interactiva">
+          <div class="lightbox__glass"></div><div class="lightbox__core"></div>
+          <div class="lightbox__slot lightbox__slot--red" data-slot="red"></div>
+          <div class="lightbox__slot lightbox__slot--gold" data-slot="gold"></div>
+          <div class="lightbox__slot lightbox__slot--blue" data-slot="blue"></div>
+          <div class="lightbox__slot lightbox__slot--white" data-slot="white"></div>
+          <span class="lightbox__mark">J / 17</span>
+        </div>
+        <p class="box-instruction" id="boxInstruction">Pulsa el primer pulso.</p>
+      </div>
+      <div class="sequence-readout" id="sequenceReadout" aria-live="polite"><i></i><i></i><i></i><i></i></div>
+      <button class="cta cta--quiet" id="resetSequence" type="button"><span>Limpiar secuencia</span><b>R</b></button>
+    </section>
+
+    <section class="screen" data-screen="3" aria-labelledby="signalTitle" hidden>
+      <div class="screen-heading"><p class="eyebrow">CAPITULO 03 / LA SEÑAL</p><h2 id="signalTitle">Escucha<br>el <em>espacio.</em></h2><p>La caja no guarda una respuesta. Guarda una distancia.</p></div>
+      <div class="signal-room" id="signalRoom"><div class="signal-room__halo"></div><div class="signal-room__line"></div><div class="signal-room__point"></div><span>arrastra la luz</span></div>
+      <div class="memory-note"><span>ARCHIVO / 03:17</span><p>"Lo que se rompe no desaparece.<br>cambia de lugar."</p></div>
+      <button class="cta" data-action="finish" type="button"><span>Abrir el ultimo umbral</span><b>03</b></button>
+    </section>
+
+    <section class="screen screen--end" data-screen="4" aria-labelledby="endTitle" hidden>
+      <div class="end-light" aria-hidden="true"></div>
+      <div class="hero-copy hero-copy--end"><p class="eyebrow">JUDAS / EXPERIENCE COMPLETE</p><h2 id="endTitle">No era<br>una <em>caja.</em></h2><p class="lede">Era el lugar exacto donde una historia seguia escuchandote.</p><button class="cta" data-action="restart" type="button"><span>Volver al umbral</span><b>↺</b></button></div>
+      <p class="end-signature">BELENTANI<br><span>la luz recuerda</span></p>
+    </section>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <audio id="judasTrack" preload="metadata" loop src="assets/judas-demo.mp3"></audio>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
