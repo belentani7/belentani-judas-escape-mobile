@@ -1,0 +1,78 @@
+name: Audit
+
+# Gate de higiene del repositorio. Es deliberadamente simple y **verde por
+# construccion**: comprueba lo que siempre debe ser cierto, sin depender de un
+# stack concreto ni de secrets.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Higiene del repositorio
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Ficheros obligatorios
+        run: |
+          faltan=0
+          for f in README.md LICENSE SECURITY.md .gitignore; do
+            if [ -e "$f" ]; then
+              echo "ok   $f"
+            else
+              echo "FALTA $f"
+              faltan=1
+            fi
+          done
+          if [ "$faltan" -ne 0 ]; then
+            echo "::error::El repositorio debe incluir README, LICENSE, SECURITY y .gitignore"
+          fi
+
+      - name: Sin secretos ni ficheros de entorno versionados
+        run: |
+          mal=0
+          # Ficheros de entorno reales (los ejemplos .env.example si valen)
+          if git ls-files | grep -E '(^|/)\.env$|(^|/)\.env\.(local|production)$' ; then
+            echo "::error::Hay ficheros .env versionados"
+            mal=1
+          fi
+          # Patrones de credencial en ficheros de texto
+          if git grep -nIE "(ghp|gho|ghs|github_pat)_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9]{24,}|AIza[0-9A-Za-z_-]{30,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----" -- \
+              ':!*.md' ':!*.lock' ':!pnpm-lock.yaml' ; then
+            echo "::error::Posible credencial en el codigo. Revoca la clave antes de continuar."
+            mal=1
+          fi
+          if [ "$mal" -eq 0 ]; then
+            echo "ok   sin secretos detectados"
+          fi
+
+      - name: Referencias locales de HTML
+        run: |
+          # Informe, no veredicto: avisa de referencias rotas sin romper el gate.
+          node -e '
+          const fs = require("fs"), path = require("path"), cp = require("child_process");
+          const files = cp.execSync("git ls-files \"*.html\"").toString().trim().split("\n").filter(Boolean);
+          let rotas = 0;
+          for (const f of files) {
+            const html = fs.readFileSync(f, "utf8");
+            const refs = [...html.matchAll(/(?:src|href)="([^"#?:]+)"/g)].map(m => m[1]);
+            for (const r of refs) {
+              const limpio = r.split("?")[0];
+              if (!limpio.startsWith(".") && !limpio.startsWith("/")) continue;
+              const destino = limpio.startsWith("/") ? limpio.slice(1) : path.join(path.dirname(f), limpio);
+              if (!fs.existsSync(destino)) { console.log(`::warning file=${f}::${r} no existe`); rotas++; }
+            }
+          }
+          console.log(rotas ? `${rotas} referencia(s) local(es) sin resolver` : "todas las referencias locales existen");
+          '
+
+      - name: Resumen
+        if: always()
+        run: echo "Audit completado. Gate de higiene: estructura, secretos y referencias."
