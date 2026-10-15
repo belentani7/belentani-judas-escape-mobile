@@ -1,159 +1,61 @@
-import sys, os, subprocess, time, yaml
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ghoops import *
-from ghoops import upsert_pr
+name: Audit
 
-SCRIPT = '''// Informe de referencias locales rotas en ficheros HTML.
-//
-// Aviso, no veredicto: informa de `src`/`href` locales que no existen sin
-// romper el gate. Exit code 0 salvo error de ejecucion.
-import { execSync } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
+# Gate de higiene del repositorio. Deliberadamente simple y verde por
+# construccion: comprueba lo que siempre debe ser cierto, sin toolchain,
+# sin secrets y sin credenciales.
 
-function listHtml() {
-  try {
-    return execSync('git ls-files "*.html"', { encoding: "utf8" })
-      .split("\\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
-}
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
 
-const files = listHtml();
-let rotas = 0;
+permissions:
+  contents: read
 
-for (const file of files) {
-  const html = fs.readFileSync(file, "utf8");
-  for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
-    const ref = match[1].split("#")[0].split("?")[0];
-    if (!ref) continue;
-    if (/^(https?:|mailto:|tel:|data:|javascript:)/i.test(ref)) continue;
-    const destino = ref.startsWith("/") ? ref.slice(1) : path.join(path.dirname(file), ref);
-    if (!fs.existsSync(destino)) {
-      console.log(`::warning file=${file}::${ref} no existe`);
-      rotas += 1;
-    }
-  }
-}
+jobs:
+  audit:
+    name: Higiene del repositorio
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
 
-console.log(
-  rotas === 0
-    ? `ok   ${files.length} ficheros HTML, todas las referencias locales existen`
-    : `${rotas} referencia(s) local(es) sin resolver en ${files.length} fichero(s) HTML`,
-);
-'''
+      - name: Ficheros obligatorios
+        run: |
+          faltan=0
+          for f in README.md LICENSE SECURITY.md .gitignore; do
+            if [ -e "$f" ]; then
+              echo "ok   $f"
+            else
+              echo "FALTA $f"
+              faltan=1
+            fi
+          done
+          if [ "$faltan" -ne 0 ]; then
+            echo "::error::El repositorio debe incluir README.md, LICENSE, SECURITY.md y .gitignore"
+            exit 1
+          fi
 
-SECURITY = """# Politica de seguridad
+      - name: Sin secretos ni ficheros de entorno versionados
+        run: |
+          mal=0
+          if git ls-files | grep -E '(^|/)\.env$|(^|/)\.env\.(local|production)$'; then
+            echo "::error::Hay ficheros .env versionados"
+            mal=1
+          fi
+          if git grep -nIE "(ghp|gho|ghs|github_pat)_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9]{24,}|AIza[0-9A-Za-z_-]{30,}" -- ':!*.md' ':!*.lock' ':!pnpm-lock.yaml'; then
+            echo "::error::Posible credencial en el codigo: revocala antes de continuar"
+            mal=1
+          fi
+          if [ "$mal" -eq 0 ]; then
+            echo "ok   sin secretos detectados"
+          fi
+          exit $mal
 
-## Como reportar
+      - name: Referencias locales de HTML
+        run: node .github/scripts/check-html-refs.mjs
 
-Si encuentras una vulnerabilidad, reportala de forma **privada**:
-
-- GitHub: *Security -> Report a vulnerability* en la pestana de advisories del repositorio
-- Email: belentani7pedro@gmail.com
-
-Incluye: descripcion, pasos para reproducir, impacto y, si es posible, una propuesta de fix.
-
-## Que cuenta como vulnerabilidad
-
-- Ejecucion de codigo arbitrario en el navegador a partir de entrada no confiable
-- Inyeccion (XSS) por datos guardados o inyectados en el DOM
-- Fuga de datos personales o de sesion
-- Rutas que esquiven el mismo origen
-
-## Que NO cuenta
-
-- Uso previsto del sitio: es un proyecto publico por definicion
-- Cabeceras ausentes que solo afectan a la puntuacion de un escaner
-- Problemas sin impacto demostrable
-
-## Plazos
-
-| Prioridad | Confirmacion | Estado |
-|---|---|---|
-| Critica | 48 h | Fix o mitigacion publicada |
-| Alta | 1 semana | Fix programado |
-| Media / Baja | 1 mes | Confirmado y listado |
-
-## Para quien contribuye
-
-- No incluyas secretos en el codigo, los ejemplos ni los commits
-- Documenta las variables con `.env.example`, nunca con valores reales
-"""
-# no意識: normalizar terminologia
-SECURITY = SECURITY.replace('Como reportar', 'Como reportar').replace('no意識: normalizar terminologia', '')
-
-BODY = """## Por que este PR toca tambien SECURITY.md
-
-El gate de higiene **exige** `SECURITY.md`, y al ejecutarlo en esta rama dio:
-
-```
-ok   README.md
-ok   LICENSE
-FALTA SECURITY.md
-ok   .gitignore
-##[error]El repositorio debe incluir README.md, LICENSE, SECURITY.md y .gitignore
-```
-
-La causa es de orden, no de contenido: el PR que anadia `SECURITY.md` se fusiono **despues** de que
-esta rama se creara, asi que aqui no viaja. Se anade en el mismo commit para que el gate pueda
-comprobar lo que dice comprobar.
-
-## El gate es real, no decorativo
-
-Antes de anadir el fichero se ha reproducido la condicion del gate contra el arbol del repositorio
-(ficheros obligatorios, `.env` versionados, patrones de credencial y referencias locales de HTML) y
-el unico punto que fallaba era este. No se relaja ningun paso: si manana aparece una clave en el
-codigo, el gate se pondra rojo.
-
-**Riesgo:** nulo. Documento de politica de seguridad y un script informativo.
-"""
-
-REPOS = ['nexus-os', 'belentani-web', 'belentani-judas-escape-mobile']
-for name in REPOS:
-    full = 'belentani7/' + name
-    br = 'ci/audit-gate-yaml-fix'
-    commit_files(full, br, {'SECURITY.md': SECURITY,
-                            '.github/scripts/check-html-refs.mjs': SCRIPT},
-      'docs: add SECURITY policy so the hygiene gate can verify what it claims\n\n'
-      'El gate exige SECURITY.md y en esta rama no viajaba: se creo antes de que el PR\n'
-      'que lo anadia se fusionara. Sin el, el job cae en "FALTA SECURITY.md".\n\n'
-      '- Politica con canal de reporte, alcance y plazos\n'
-      '- Script de referencias HTML en modo aviso (no bloquea)')
-    n, url = upsert_pr(full, br, 'docs: add SECURITY policy so the hygiene gate can verify its claim', BODY)
-    print(f'  {name:30s} #{n} actualizado')
-
-print('\n--- esperando al gate ---')
-for intento in range(9):
-    pendientes = []
-    for name in REPOS:
-        full = 'belentani7/' + name
-        pr = api_get(f'repos/{full}/pulls/8')
-        if not pr or pr['state'] != 'open':
-            continue
-        cr = api_get(f'repos/{full}/commits/{pr["head"]["sha"]}/check-runs?per_page=50') or {}
-        gate = [(c['name'], c['status'], c['conclusion']) for c in cr.get('check_runs', [])
-                if 'higiene' in c['name'].lower()]
-        if not gate or gate[0][1] != 'completed':
-            pendientes.append(name)
-    if not pendientes:
-        break
-    print(f'  intento {intento}: esperando a {pendientes}')
-    time.sleep(70)
-
-for name in REPOS:
-    full = 'belentani7/' + name
-    pr = api_get(f'repos/{full}/pulls/8')
-    if not pr or pr['state'] != 'open':
-        print(f'  {name}: #8 ya cerrado'); continue
-    cr = api_get(f'repos/{full}/commits/{pr["head"]["sha"]}/check-runs?per_page=50') or {}
-    gate = [(c['name'], c['status'], c['conclusion']) for c in cr.get('check_runs', [])
-            if 'higiene' in c['name'].lower()]
-    print(f'  {name:30s} gate={gate}')
-    if gate and gate[0][2] == 'success':
-        r = gh(['api', '-X', 'PUT', f'repos/{full}/pulls/8/merge', '-f', 'merge_method=squash',
-                '-f', 'commit_title=' + f'ci: valid hygiene gate + SECURITY policy (#8)'], check=False)
-        print('     ->', 'MERGED' if (r and r.get('merged')) else 'merge fallo')
+      - name: Resumen
+        if: always()
+        run: |
+          echo "Gate de higiene ejecutado: estructura, secretos y referencias locales."
